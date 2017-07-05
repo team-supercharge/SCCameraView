@@ -1,6 +1,5 @@
 package com.example.sccameraview;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.SurfaceTexture;
@@ -15,6 +14,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -23,10 +23,13 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
+import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +39,8 @@ import java.util.concurrent.TimeUnit;
  */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class Camera2View extends BaseCameraView {
+    public static final int MEDIA_TYPE_IMAGE = 1;
+    public static final int MEDIA_TYPE_VIDEO = 2;
 
     private static final long LOCK_TIMEOUT = 2500;
     private static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
@@ -114,11 +119,11 @@ public class Camera2View extends BaseCameraView {
         }
 
         try {
-
             if (!cameraOpenCloseLock.tryAcquire(LOCK_TIMEOUT, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
-            String cameraIdString = getFrontFacingCameraId();
+            String cameraIdString = frontFacingCameraActive ? getCameraId(CameraCharacteristics.LENS_FACING_FRONT)
+                                                            : getCameraId(CameraCharacteristics.LENS_FACING_BACK);
             cameraId = Integer.parseInt(cameraIdString);
 
             // Choose the sizes for camera preview and video recording
@@ -148,12 +153,18 @@ public class Camera2View extends BaseCameraView {
         }
     }
 
-    private String getFrontFacingCameraId() throws CameraAccessException {
+    public void switchCamera() {
+        frontFacingCameraActive = !frontFacingCameraActive;
+        closeCamera();
+        openCamera();
+    }
+
+    private String getCameraId(int camera) throws CameraAccessException {
         for (String cameraId : cameraManager.getCameraIdList()) {
             CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
 
             if (cameraCharacteristics.get(CameraCharacteristics.LENS_FACING)
-                    == CameraCharacteristics.LENS_FACING_FRONT) {
+                    == camera) {
                 return cameraId;
             }
         }
@@ -283,7 +294,6 @@ public class Camera2View extends BaseCameraView {
                     // failed
                 }
             }, backgroundHandler);
-
             recordingVideo = true;
         } catch (CameraAccessException | IOException e) {
             Log.e(LOG_TAG, e.getMessage());
@@ -297,7 +307,7 @@ public class Camera2View extends BaseCameraView {
         }
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        mediaRecorder.setOutputFile(videoFile.getAbsolutePath());
+        mediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
 
         if (sensorOrientation == SENSOR_ORIENTATION_DEFAULT_DEGREES) {
             mediaRecorder.setOrientationHint(ORIENTATION_90);
@@ -353,6 +363,41 @@ public class Camera2View extends BaseCameraView {
         }
 
         return choices[choices.length - 1];
+    }
+
+    private File getOutputMediaFile(int type){
+        if (type == MEDIA_TYPE_IMAGE) {
+            File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_PICTURES).toString());
+
+            if (createDirectoryForFile(mediaStorageDir)) {
+                return new File(mediaStorageDir.getPath() + File.separator +
+                        "IMG_"+ getTimeStamp() + ".jpg");
+            }
+        } else if(type == MEDIA_TYPE_VIDEO) {
+            File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_MOVIES).toString());
+
+            if (createDirectoryForFile(mediaStorageDir)) {
+                return new File(mediaStorageDir.getPath() + File.separator +
+                        "VID_"+ getTimeStamp() + ".mp4");
+            }
+        }
+        return null;
+    }
+
+    private boolean createDirectoryForFile(File mediaStorageDir) {
+        if (!mediaStorageDir.exists()){
+            if (!mediaStorageDir.mkdirs()){
+                Log.e(LOG_TAG, "failed to create directory");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String getTimeStamp() {
+        return new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
     }
 
     private static class CompareSizesByArea implements Comparator<Size> {
