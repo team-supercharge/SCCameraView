@@ -1,15 +1,15 @@
-apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
 
 android {
     compileSdkVersion 25
     buildToolsVersion "26.0.0"
 
     defaultConfig {
-        applicationId "io.supercharge.sccameraview"
         minSdkVersion 14
         targetSdkVersion 25
         versionCode 1
         versionName "1.0"
+
     }
 }
 
@@ -26,8 +26,4 @@ allprojects {
     repositories {
         jcenter()
     }
-}
-
-dependencies {
-    compile 'com.android.support:appcompat-v7:25.3.1'
 }
