@@ -4,11 +4,10 @@ import android.content.Context;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.util.Log;
 
 import java.io.IOException;
 import java.util.List;
-
-import timber.log.Timber;
 
 /**
  * Based on https://github.com/googlesamples/android-MediaRecorder
@@ -64,7 +63,7 @@ public class Camera1View extends BaseCameraView {
             camera.setPreviewTexture(getSurfaceTexture());
             camera.startPreview();
         } catch (IOException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         }
     }
 
@@ -129,11 +128,11 @@ public class Camera1View extends BaseCameraView {
         try {
             mediaRecorder.prepare();
         } catch (IllegalStateException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
             releaseMediaRecorder();
             return false;
         } catch (IOException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
             releaseMediaRecorder();
             return false;
         }
@@ -148,7 +147,7 @@ public class Camera1View extends BaseCameraView {
         } catch (RuntimeException e) {
             // RuntimeException is thrown when stop() is called immediately after start().
             // In this case the output file is not properly constructed ans should be deleted.
-            Timber.e(e, "RuntimeException: stop() is called immediately after start()");
+            Log.e(LOG_TAG, e.getMessage());
         }
         releaseMediaRecorder(); // release the MediaRecorder object
         camera.lock();         // take camera access back from MediaRecorder
