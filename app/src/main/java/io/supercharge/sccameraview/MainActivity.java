@@ -2,6 +2,8 @@ package io.supercharge.sccameraview;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.hardware.Camera;
+import android.hardware.camera2.CaptureRequest;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
@@ -14,6 +16,7 @@ import android.widget.FrameLayout;
 import com.example.sccameraview.BaseCameraView;
 import com.example.sccameraview.Camera1View;
 import com.example.sccameraview.Camera2View;
+import com.example.sccameraview.OnImageSavedListener;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 1;
@@ -22,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private BaseCameraView cameraView;
     private Button switchButton;
     private Button recordButton;
-    private Button stopButton;
+    private Button takePictureButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,21 +38,22 @@ public class MainActivity extends AppCompatActivity {
             initApplication();
         } else {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO},
+                    new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     PERMISSION_REQUEST_CODE);
         }
     }
 
     private boolean isEveryPermissionGranted() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void bindViews() {
         videoContainer = (FrameLayout) findViewById(R.id.video_container);
         switchButton = (Button) findViewById(R.id.camera_switch_btn);
         recordButton = (Button) findViewById(R.id.camera_record_btn);
-        stopButton = (Button) findViewById(R.id.camera_stop_btn);
+        takePictureButton = (Button) findViewById(R.id.camera_take_picture_btn);
     }
 
     private void initApplication() {
@@ -71,29 +75,43 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-        stopButton.setOnClickListener(new View.OnClickListener() {
+        takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                cameraView.stopPreview();
+                cameraView.takePicture();
             }
         });
+        cameraView.setImageSavedListener(new OnImageSavedListener() {
+            @Override
+            public void onImageSaved() {
+                cameraView.startPreview();
+            }
+        });
+        
         cameraView.startPreview();
     }
 
     private BaseCameraView createCameraView() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return new Camera1View(this);
+            Camera1View camera1View = new Camera1View(this);
+            camera1View.setCameraFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            camera1View.setCameraFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+
+            return camera1View;
+        } else {
+            Camera2View camera2View = new Camera2View(this);
+            camera2View.setCameraAutoFocusMode(CaptureRequest.CONTROL_AF_MODE_AUTO);
+            camera2View.setCameraFlashMode(CaptureRequest.FLASH_MODE_OFF);
+
+            return camera2View;
         }
-        return new Camera2View(this);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
             case PERMISSION_REQUEST_CODE: {
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     cameraView = createCameraView();
                     initApplication();
                 }

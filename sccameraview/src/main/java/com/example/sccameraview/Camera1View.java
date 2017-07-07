@@ -15,10 +15,10 @@ import java.util.List;
 public class Camera1View extends BaseCameraView {
 
     private Camera camera;
-
     private MediaRecorder mediaRecorder;
-
     private Camera.Size videoSize;
+    private String cameraFlashMode;
+    private String cameraFocusMode;
 
     public Camera1View(Context context) {
         super(context);
@@ -35,9 +35,7 @@ public class Camera1View extends BaseCameraView {
 
     @Override
     public void stopPreview() {
-        // if we are using MediaRecorder, release it first
         releaseMediaRecorder();
-        // release the camera immediately on pause event
         releaseCamera();
     }
 
@@ -55,10 +53,19 @@ public class Camera1View extends BaseCameraView {
                 calculatedWidth, calculatedHeight);
         videoSize = chooseVideoSize(supportedVideoSizes);
         parameters.setPreviewSize(previewSize.width, previewSize.height);
+        parameters.setPictureSize(previewSize.width, previewSize.height);
+
+        if (parameters.getSupportedFlashModes() != null &&
+                parameters.getSupportedFlashModes().contains(cameraFlashMode)) {
+            parameters.setFlashMode(cameraFlashMode);
+        }
+        if (parameters.getSupportedFocusModes() != null &&
+                parameters.getSupportedFocusModes().contains(cameraFocusMode)) {
+            parameters.setFocusMode(cameraFocusMode);
+        }
 
         camera.setDisplayOrientation(ORIENTATION_90);
         camera.setParameters(parameters);
-
         try {
             camera.setPreviewTexture(getSurfaceTexture());
             camera.startPreview();
@@ -68,6 +75,16 @@ public class Camera1View extends BaseCameraView {
     }
 
     @Override
+    public void takePicture() {
+        camera.takePicture(null, null, null, new Camera.PictureCallback() {
+            @Override
+            public void onPictureTaken(byte[] imageData, Camera camera) {
+                releaseCamera();
+                saveImage(imageData);
+            }
+        });
+    }
+
     public void switchCamera() {
         frontFacingCameraActive = !frontFacingCameraActive;
         releaseCamera();
@@ -246,5 +263,13 @@ public class Camera1View extends BaseCameraView {
         }
 
         return supportedVideoSizes.get(supportedVideoSizes.size() - 1);
+    }
+
+    public void setCameraFlashMode(String cameraFlashMode) {
+        this.cameraFlashMode = cameraFlashMode;
+    }
+
+    public void setCameraFocusMode(String cameraFocusMode) {
+        this.cameraFocusMode = cameraFocusMode;
     }
 }
