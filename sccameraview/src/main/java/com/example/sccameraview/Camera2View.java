@@ -19,10 +19,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
-
-import com.tbruyelle.rxpermissions.RxPermissions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,21 +31,13 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import timber.log.Timber;
-
 /**
  * Based on https://github.com/googlesamples/android-Camera2Video
  */
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class Camera2View extends BaseCameraView {
 
-    private static final String[] VIDEO_PERMISSIONS = {
-        Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO,
-    };
-
     private static final long LOCK_TIMEOUT = 2500;
-
     private static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
 
     CameraManager cameraManager;
@@ -109,7 +100,7 @@ public class Camera2View extends BaseCameraView {
             backgroundThread = null;
             backgroundHandler = null;
         } catch (InterruptedException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         }
     }
 
@@ -121,10 +112,6 @@ public class Camera2View extends BaseCameraView {
         if (null == activity || activity.isFinishing()) {
             return;
         }
-
-        new RxPermissions(activity)
-                .request(VIDEO_PERMISSIONS)
-                .subscribe();
 
         try {
 
@@ -148,16 +135,14 @@ public class Camera2View extends BaseCameraView {
                     calculatedWidth, calculatedHeight, videoSize);
 
             sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-
             mediaRecorder = new MediaRecorder();
-
             cameraManager.openCamera(cameraIdString, stateCallback, null);
         } catch (CameraAccessException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         } catch (NullPointerException e) {
             // Currently an NPE is thrown when the Camera2API is used but not supported on the
             // device this code runs.
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         } catch (InterruptedException e) {
             throw new RuntimeException("Interrupted while trying to lock camera opening.");
         }
@@ -172,7 +157,6 @@ public class Camera2View extends BaseCameraView {
                 return cameraId;
             }
         }
-
         return null;
     }
 
@@ -224,7 +208,7 @@ public class Camera2View extends BaseCameraView {
                         }
                     }, backgroundHandler);
         } catch (CameraAccessException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         }
     }
 
@@ -238,7 +222,7 @@ public class Camera2View extends BaseCameraView {
             thread.start();
             previewSession.setRepeatingRequest(previewBuilder.build(), null, backgroundHandler);
         } catch (CameraAccessException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         }
     }
 
@@ -285,9 +269,12 @@ public class Camera2View extends BaseCameraView {
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     previewSession = cameraCaptureSession;
                     updatePreview();
-                    post(() -> {
-                        // Start recording
-                        mediaRecorder.start();
+                    post(new Runnable() {
+                        @Override
+                        public void run() {
+                            // Start recording
+                            mediaRecorder.start();
+                        }
                     });
                 }
 
@@ -299,9 +286,8 @@ public class Camera2View extends BaseCameraView {
 
             recordingVideo = true;
         } catch (CameraAccessException | IOException e) {
-            Timber.e(e);
+            Log.e(LOG_TAG, e.getMessage());
         }
-
     }
 
     private void setUpMediaRecorder() throws IOException {
@@ -324,15 +310,12 @@ public class Camera2View extends BaseCameraView {
         profile.videoFrameHeight = videoSize.getHeight();
 
         mediaRecorder.setProfile(profile);
-
         mediaRecorder.setVideoEncodingBitRate(BITRATE);
-
         mediaRecorder.prepare();
     }
 
     @Override
     public void stopRecordingVideo() {
-        // Stop recording
         mediaRecorder.stop();
         mediaRecorder.reset();
 
@@ -380,7 +363,6 @@ public class Camera2View extends BaseCameraView {
             return Long.signum((long) lhs.getWidth() * lhs.getHeight()
                     - (long) rhs.getWidth() * rhs.getHeight());
         }
-
     }
 
     private class StateCallback extends CameraDevice.StateCallback {
@@ -406,5 +388,4 @@ public class Camera2View extends BaseCameraView {
             cameraDevice = null;
         }
     }
-
 }

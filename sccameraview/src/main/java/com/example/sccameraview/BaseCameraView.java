@@ -14,6 +14,7 @@ public abstract class BaseCameraView extends TextureView {
     static final int BITRATE = 2500000;
     static final float ASPECT_RATIO = 4f / 3f;
     static final int MAX_RECORDING_WIDTH = 720;
+    static final String LOG_TAG = "SCCameraView";
 
     int cameraId;
     boolean recordingVideo;
