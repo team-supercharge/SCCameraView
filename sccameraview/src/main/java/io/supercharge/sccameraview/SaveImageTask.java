@@ -1,4 +1,4 @@
-package com.example.sccameraview;
+package io.supercharge.sccameraview;
 
 import android.os.AsyncTask;
 import android.util.Log;
@@ -8,7 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-import static com.example.sccameraview.BaseCameraView.LOG_TAG;
+import static io.supercharge.sccameraview.BaseCameraView.LOG_TAG;
 
 class SaveImageTask extends AsyncTask {
 
@@ -26,14 +26,14 @@ class SaveImageTask extends AsyncTask {
     protected Object doInBackground(Object[] objects) {
         FileOutputStream fos = null;
         try {
-            if (imageFile == null){
+            if (imageFile == null) {
                 Log.d(LOG_TAG, "Error creating media file, check storage permissions");
                 return null;
             }
-            if (imageData == null){
+            if (imageData == null) {
                 Log.d(LOG_TAG, "No image data");
-                return null;
             }
+
             try {
                 //TODO: test rotation and orientation on multiple devices
                 fos = new FileOutputStream(imageFile);
@@ -45,7 +45,7 @@ class SaveImageTask extends AsyncTask {
                 Log.d(LOG_TAG, "Error accessing file: " + e.getMessage());
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.d(LOG_TAG, "Error executing background task: " + e.getMessage());
         }
         return fos;
     }

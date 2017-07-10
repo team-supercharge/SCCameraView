@@ -1,4 +1,4 @@
-package com.example.sccameraview;
+package io.supercharge.sccameraview;
 
 import android.app.Activity;
 import android.content.Context;
@@ -66,18 +66,9 @@ public class Camera2View extends BaseCameraView {
     private Handler backgroundHandler;
     private final Semaphore cameraOpenCloseLock = new Semaphore(1);
 
-
     public Camera2View(Context context) {
         super(context);
         cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-    }
-
-    public void setCameraAutoFocusMode(int cameraAutoFocusMode) {
-        this.cameraAutoFocusMode = cameraAutoFocusMode;
-    }
-
-    public void setCameraFlashMode(int cameraFlashMode) {
-        this.cameraFlashMode = cameraFlashMode;
     }
 
     @Override
@@ -122,7 +113,6 @@ public class Camera2View extends BaseCameraView {
     @Override
     public void openCamera() {
         final Activity activity = (Activity) getContext();
-
         if (null == activity || activity.isFinishing()) {
             return;
         }
@@ -131,11 +121,9 @@ public class Camera2View extends BaseCameraView {
             if (!cameraOpenCloseLock.tryAcquire(LOCK_TIMEOUT, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
-            cameraIdString = frontFacingCameraActive ? getCameraId(CameraCharacteristics.LENS_FACING_FRONT)
-                                                            : getCameraId(CameraCharacteristics.LENS_FACING_BACK);
+            cameraIdString = getCameraId();
             cameraId = Integer.parseInt(cameraIdString);
 
-            // Choose the sizes for camera preview and video recording
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraIdString);
             StreamConfigurationMap map = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -144,10 +132,13 @@ public class Camera2View extends BaseCameraView {
                 throw new RuntimeException("Cannot get available preview/video sizes");
             }
 
-            imageSize = chooseVideoSize(map.getOutputSizes(ImageFormat.JPEG));
-            videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder.class));
-            previewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
-                    calculatedWidth, calculatedHeight, videoSize);
+            if (ratioSizeList.isEmpty()) {
+                collectAspectRatios(map.getOutputSizes(SurfaceTexture.class));
+            }
+
+            previewSize = ratioSizeList.get(selectedRatioIdx).getSize();
+            videoSize = ratioSizeList.get(selectedRatioIdx).getSize();
+            imageSize = ratioSizeList.get(selectedRatioIdx).getSize();
 
             sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
             mediaRecorder = new MediaRecorder();
@@ -163,14 +154,39 @@ public class Camera2View extends BaseCameraView {
         }
     }
 
-    @Override
-    public void switchCamera() {
-        frontFacingCameraActive = !frontFacingCameraActive;
-        closeCamera();
-        openCamera();
+    private void collectAspectRatios(Size[] outputSizes) {
+        if (outputSizes != null) {
+            List<Double> ratioList = new ArrayList<>();
+            for (Size size : outputSizes) {
+                double ratio = (double) size.getWidth() / (double) size.getHeight();
+                if (!ratioList.contains(ratio)) {
+                    ratioList.add(ratio);
+                    ratioSizeList.add(new AspectRatio(ratio, size.getWidth(), size.getHeight()));
+                }
+            }
+            if (!ratioSizeList.isEmpty()) {
+                Collections.sort(ratioSizeList, new Comparator<AspectRatio>() {
+                    @Override
+                    public int compare(AspectRatio p1, AspectRatio p2) {
+                        return p1.getRatio() < p2.getRatio() ? -1 : 1;
+                    }
+                });
+            }
+
+            ASPECT_RATIO = ratioSizeList.get(selectedRatioIdx).getRatio();
+        }
     }
 
-    private String getCameraId(int camera) throws CameraAccessException {
+    public void switchCamera() {
+        stopPreview();
+        frontFacingCameraActive = !frontFacingCameraActive;
+        ratioSizeList = new ArrayList<>();
+        loadAspectRatios();
+    }
+
+    private String getCameraId() throws CameraAccessException {
+        int camera = frontFacingCameraActive ? CameraCharacteristics.LENS_FACING_FRONT
+                                             : CameraCharacteristics.LENS_FACING_BACK;
         for (String cameraId : cameraManager.getCameraIdList()) {
             CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
 
@@ -182,7 +198,7 @@ public class Camera2View extends BaseCameraView {
         return null;
     }
 
-    private void closeCamera() {
+    protected void closeCamera() {
         try {
             cameraOpenCloseLock.acquire();
             closePreviewSession();
@@ -345,39 +361,7 @@ public class Camera2View extends BaseCameraView {
         mediaRecorder.reset();
 
         recordingVideo = false;
-    }
-
-    private static Size chooseOptimalSize(Size[] choices, int width, int height, Size aspectRatio) {
-        // Collect the supported resolutions that are at least as big as the preview Surface
-        List<Size> bigEnough = new ArrayList<>();
-        int w = aspectRatio.getWidth();
-        int h = aspectRatio.getHeight();
-        for (Size option : choices) {
-            if (option.getHeight() == option.getWidth() * h / w
-                    && option.getWidth() >= width && option.getHeight() >= height) {
-                bigEnough.add(option);
-            }
-        }
-
-        // Pick the smallest of those, assuming we found any
-        if (bigEnough.size() > 0) {
-            return Collections.min(bigEnough, new CompareSizesByArea());
-        } else {
-            return choices[0];
-        }
-    }
-
-    private static Size chooseVideoSize(Size[] choices) {
-        final double acceptTolerance = 0.1;
-
-        for (Size size : choices) {
-            if (Math.abs(size.getWidth() - size.getHeight() * ASPECT_RATIO) < acceptTolerance
-                    && size.getWidth() <= MAX_RECORDING_WIDTH) {
-                return size;
-            }
-        }
-
-        return choices[choices.length - 1];
+        startPreview();
     }
 
     @Override
@@ -431,6 +415,46 @@ public class Camera2View extends BaseCameraView {
         }
     }
 
+    @Override
+    public void changeAspectRatio(int position) {
+        if(!ratioSizeList.isEmpty()) {
+            ASPECT_RATIO = ratioSizeList.get(position).getRatio();
+        }
+    }
+
+    @Override
+    public void collectRatioSizes() {
+        ratioSizeList.clear();
+        CameraCharacteristics characteristics;
+        StreamConfigurationMap map = null;
+        try {
+            characteristics = ((CameraManager) getContext().getSystemService(Context.CAMERA_SERVICE)).getCameraCharacteristics(Integer.toString(Integer.parseInt(getCameraId())));
+            map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        Size[] outputSizes = map.getOutputSizes(SurfaceTexture.class);
+        if (outputSizes != null) {
+            List<Double> ratioList = new ArrayList<>();
+            for (Size size : outputSizes) {
+                double ratio = (double) size.getWidth() / (double) size.getHeight();
+                if (!ratioList.contains(ratio)) {
+                    ratioList.add(ratio);
+                    ratioSizeList.add(new AspectRatio(ratio, size.getWidth(), size.getHeight()));
+                }
+            }
+        }
+    }
+
+    public void setCameraAutoFocusMode(int cameraAutoFocusMode) {
+        this.cameraAutoFocusMode = cameraAutoFocusMode;
+    }
+
+    public void setCameraFlashMode(int cameraFlashMode) {
+        this.cameraFlashMode = cameraFlashMode;
+    }
+
     private final ImageReader.OnImageAvailableListener mImageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
@@ -443,15 +467,6 @@ public class Camera2View extends BaseCameraView {
             image.close();
         }
     };
-
-    private static class CompareSizesByArea implements Comparator<Size> {
-        @Override
-        public int compare(Size lhs, Size rhs) {
-            // We cast here to ensure the multiplications won't overflow
-            return Long.signum((long) lhs.getWidth() * lhs.getHeight()
-                    - (long) rhs.getWidth() * rhs.getHeight());
-        }
-    }
 
     private class StateCallback extends CameraDevice.StateCallback {
 

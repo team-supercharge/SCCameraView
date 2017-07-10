@@ -1,4 +1,4 @@
-package com.example.sccameraview;
+package io.supercharge.sccameraview;
 
 
 public interface OnImageSavedListener {
