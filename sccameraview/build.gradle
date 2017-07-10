@@ -9,22 +9,6 @@ android {
         targetSdkVersion 25
         versionCode 1
         versionName "1.0"
-
-    }
-}
-
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:2.3.2'
-    }
-}
-
-allprojects {
-    repositories {
-        jcenter()
     }
 }
 
