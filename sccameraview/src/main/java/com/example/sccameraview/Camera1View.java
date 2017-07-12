@@ -67,6 +67,13 @@ public class Camera1View extends BaseCameraView {
         }
     }
 
+    @Override
+    public void switchCamera() {
+        frontFacingCameraActive = !frontFacingCameraActive;
+        releaseCamera();
+        openCamera();
+    }
+
     private void releaseCamera() {
         if (camera != null) {
             camera.release();
@@ -151,9 +158,7 @@ public class Camera1View extends BaseCameraView {
         }
         releaseMediaRecorder(); // release the MediaRecorder object
         camera.lock();         // take camera access back from MediaRecorder
-
         releaseCamera();
-
         recordingVideo = false;
     }
 

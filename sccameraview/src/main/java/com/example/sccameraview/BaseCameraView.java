@@ -21,11 +21,13 @@ public abstract class BaseCameraView extends TextureView {
     File videoFile;
     int calculatedWidth;
     int calculatedHeight;
+    protected boolean frontFacingCameraActive;
 
     final SurfaceTextureListener surfaceTextureListener = new SurfaceTextureListener();
 
     public BaseCameraView(Context context) {
         super(context);
+        frontFacingCameraActive = true;
     }
 
     public abstract void startPreview();
@@ -52,21 +54,29 @@ public abstract class BaseCameraView extends TextureView {
         this.calculatedHeight = calculatedHeight;
     }
 
+    public void setFrontFacingCameraActive(boolean frontFacingCameraActive) {
+        this.frontFacingCameraActive = frontFacingCameraActive;
+    }
+
     CamcorderProfile getCamcorderProfile() {
+        if (CamcorderProfile.hasProfile(cameraId, CamcorderProfile.QUALITY_HIGH)) {
+            return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
+        }
         if (CamcorderProfile.hasProfile(cameraId, CamcorderProfile.QUALITY_480P)) {
             return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_480P);
         }
-
         return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_LOW);
     }
 
     abstract void openCamera();
 
+    public abstract void switchCamera();
+
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            openCamera();
+            startPreview();
         }
 
         @Override
