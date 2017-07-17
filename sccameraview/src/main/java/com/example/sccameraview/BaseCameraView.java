@@ -3,14 +3,21 @@ package com.example.sccameraview;
 import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.media.CamcorderProfile;
+import android.os.Environment;
+import android.util.Log;
 import android.view.TextureView;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public abstract class BaseCameraView extends TextureView {
 
+    public static final int MEDIA_TYPE_IMAGE = 1;
+    public static final int MEDIA_TYPE_VIDEO = 2;
     static final int ORIENTATION_90 = 90;
     static final int ORIENTATION_270 = 270;
+    static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
     static final int BITRATE = 2500000;
     static final float ASPECT_RATIO = 4f / 3f;
     static final int MAX_RECORDING_WIDTH = 720;
@@ -37,6 +44,10 @@ public abstract class BaseCameraView extends TextureView {
     public abstract void startRecordingVideo();
 
     public abstract void stopRecordingVideo();
+
+    abstract void openCamera();
+
+    public abstract void switchCamera();
 
     public boolean isRecordingVideo() {
         return recordingVideo;
@@ -68,9 +79,40 @@ public abstract class BaseCameraView extends TextureView {
         return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_LOW);
     }
 
-    abstract void openCamera();
+    File getOutputMediaFile(int type){
+        if (type == MEDIA_TYPE_IMAGE) {
+            File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_PICTURES).toString());
 
-    public abstract void switchCamera();
+            if (createDirectoryForFile(mediaStorageDir)) {
+                return new File(mediaStorageDir.getPath() + File.separator +
+                        "IMG_"+ getTimeStamp() + ".jpg");
+            }
+        } else if(type == MEDIA_TYPE_VIDEO) {
+            File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_MOVIES).toString());
+
+            if (createDirectoryForFile(mediaStorageDir)) {
+                return new File(mediaStorageDir.getPath() + File.separator +
+                        "VID_"+ getTimeStamp() + ".mp4");
+            }
+        }
+        return null;
+    }
+
+    boolean createDirectoryForFile(File mediaStorageDir) {
+        if (!mediaStorageDir.exists()){
+            if (!mediaStorageDir.mkdirs()){
+                Log.e(LOG_TAG, "failed to create directory");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public String getTimeStamp() {
+        return new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+    }
 
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {
 
@@ -86,6 +128,7 @@ public abstract class BaseCameraView extends TextureView {
 
         @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+            stopPreview();
             return true;
         }
 

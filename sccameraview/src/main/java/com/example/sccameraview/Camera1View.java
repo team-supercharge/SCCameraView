@@ -43,20 +43,20 @@ public class Camera1View extends BaseCameraView {
 
     @Override
     void openCamera() {
-        cameraId = getDefaultFrontFacingCameraId();
+        cameraId = frontFacingCameraActive ? getDefaultCameraId(Camera.CameraInfo.CAMERA_FACING_FRONT)
+                                           : getDefaultCameraId(Camera.CameraInfo.CAMERA_FACING_BACK);
         camera = Camera.open(cameraId);
 
         Camera.Parameters parameters = camera.getParameters();
         List<Camera.Size> supportedPreviewSizes = parameters.getSupportedPreviewSizes();
         List<Camera.Size> supportedVideoSizes = parameters.getSupportedVideoSizes();
+
         Camera.Size previewSize = getOptimalPreviewSize(supportedVideoSizes, supportedPreviewSizes,
                 calculatedWidth, calculatedHeight);
         videoSize = chooseVideoSize(supportedVideoSizes);
-
         parameters.setPreviewSize(previewSize.width, previewSize.height);
 
         camera.setDisplayOrientation(ORIENTATION_90);
-
         camera.setParameters(parameters);
 
         try {
@@ -109,7 +109,15 @@ public class Camera1View extends BaseCameraView {
 
     private boolean prepareVideoRecorder() {
         mediaRecorder = new MediaRecorder();
-        mediaRecorder.setOrientationHint(ORIENTATION_270);
+
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(cameraId, info);
+
+        if (info.orientation == SENSOR_ORIENTATION_DEFAULT_DEGREES) {
+            mediaRecorder.setOrientationHint(ORIENTATION_90);
+        } else {
+            mediaRecorder.setOrientationHint(ORIENTATION_270);
+        }
 
         // Step 1: Unlock and set camera to MediaRecorder
         camera.unlock();
@@ -125,11 +133,10 @@ public class Camera1View extends BaseCameraView {
         profile.videoFrameHeight = videoSize.height;
 
         mediaRecorder.setProfile(profile);
-
         mediaRecorder.setVideoEncodingBitRate(BITRATE);
 
         // Step 4: Set output file
-        mediaRecorder.setOutputFile(videoFile.getAbsolutePath());
+        mediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
 
         // Step 5: Prepare configured MediaRecorder
         try {
@@ -160,10 +167,6 @@ public class Camera1View extends BaseCameraView {
         camera.lock();         // take camera access back from MediaRecorder
         releaseCamera();
         recordingVideo = false;
-    }
-
-    private static int getDefaultFrontFacingCameraId() {
-        return getDefaultCameraId(Camera.CameraInfo.CAMERA_FACING_FRONT);
     }
 
     private static int getDefaultCameraId(int position) {
