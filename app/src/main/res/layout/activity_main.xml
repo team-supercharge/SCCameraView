@@ -36,15 +36,15 @@
         android:text="@string/main_record_button"
         app:layout_constraintTop_toBottomOf="@+id/video_container"
         app:layout_constraintLeft_toRightOf="@+id/camera_switch_btn"
-        app:layout_constraintRight_toLeftOf="@+id/camera_stop_btn"
+        app:layout_constraintRight_toLeftOf="@+id/camera_take_picture_btn"
         app:layout_constraintBottom_toBottomOf="parent"
         android:layout_marginBottom="70dp"/>
 
     <Button
-        android:id="@+id/camera_stop_btn"
+        android:id="@+id/camera_take_picture_btn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/main_stop_button"
+        android:text="@string/main_snap_btn"
         app:layout_constraintTop_toBottomOf="@+id/video_container"
         app:layout_constraintLeft_toRightOf="@+id/camera_record_btn"
         app:layout_constraintRight_toRightOf="parent"

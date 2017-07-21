@@ -2,6 +2,7 @@ package com.example.sccameraview;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -10,8 +11,11 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
+import android.media.Image;
+import android.media.ImageReader;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Handler;
@@ -23,6 +27,7 @@ import android.util.Size;
 import android.view.Surface;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,30 +43,41 @@ public class Camera2View extends BaseCameraView {
 
     private static final long LOCK_TIMEOUT = 2500;
 
-    CameraManager cameraManager;
-
+    private CaptureRequest.Builder previewBuilder;
     private Size previewSize;
+
+    private MediaRecorder mediaRecorder;
     private Size videoSize;
+    private Size imageSize;
 
-    private int sensorOrientation;
-
-    private final StateCallback stateCallback = new StateCallback();
-
+    CameraManager cameraManager;
     private CameraDevice cameraDevice;
     private CameraCaptureSession previewSession;
+    private String cameraIdString;
+    private final StateCallback stateCallback = new StateCallback();
 
-    private CaptureRequest.Builder previewBuilder;
+    private ImageReader imageReader;
+
+    private int sensorOrientation;
+    private int cameraAutoFocusMode;
+    private int cameraFlashMode;
 
     private HandlerThread backgroundThread;
     private Handler backgroundHandler;
-
     private final Semaphore cameraOpenCloseLock = new Semaphore(1);
 
-    private MediaRecorder mediaRecorder;
 
     public Camera2View(Context context) {
         super(context);
         cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+    }
+
+    public void setCameraAutoFocusMode(int cameraAutoFocusMode) {
+        this.cameraAutoFocusMode = cameraAutoFocusMode;
+    }
+
+    public void setCameraFlashMode(int cameraFlashMode) {
+        this.cameraFlashMode = cameraFlashMode;
     }
 
     @Override
@@ -115,7 +131,7 @@ public class Camera2View extends BaseCameraView {
             if (!cameraOpenCloseLock.tryAcquire(LOCK_TIMEOUT, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
-            String cameraIdString = frontFacingCameraActive ? getCameraId(CameraCharacteristics.LENS_FACING_FRONT)
+            cameraIdString = frontFacingCameraActive ? getCameraId(CameraCharacteristics.LENS_FACING_FRONT)
                                                             : getCameraId(CameraCharacteristics.LENS_FACING_BACK);
             cameraId = Integer.parseInt(cameraIdString);
 
@@ -128,6 +144,7 @@ public class Camera2View extends BaseCameraView {
                 throw new RuntimeException("Cannot get available preview/video sizes");
             }
 
+            imageSize = chooseVideoSize(map.getOutputSizes(ImageFormat.JPEG));
             videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder.class));
             previewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
                     calculatedWidth, calculatedHeight, videoSize);
@@ -176,6 +193,10 @@ public class Camera2View extends BaseCameraView {
             if (null != mediaRecorder) {
                 mediaRecorder.release();
                 mediaRecorder = null;
+            }
+            if (null != imageReader) {
+                imageReader.close();
+                imageReader = null;
             }
         } catch (InterruptedException e) {
             throw new RuntimeException("Interrupted while trying to lock camera closing.");
@@ -359,8 +380,71 @@ public class Camera2View extends BaseCameraView {
         return choices[choices.length - 1];
     }
 
-    private static class CompareSizesByArea implements Comparator<Size> {
+    @Override
+    public void takePicture() {
+        imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), ImageFormat.JPEG, 1);
+        imageReader.setOnImageAvailableListener(mImageAvailableListener, backgroundHandler);
 
+        try {
+            final int sensorOrientation = cameraManager.getCameraCharacteristics(cameraIdString).get(
+                    CameraCharacteristics.SENSOR_ORIENTATION);
+            cameraDevice.createCaptureSession(Collections.singletonList(imageReader.getSurface()),
+                new CameraCaptureSession.StateCallback() {
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession session) {
+                        try {
+                        CaptureRequest.Builder captureRequestBuilder = cameraDevice.createCaptureRequest(
+                                CameraDevice.TEMPLATE_STILL_CAPTURE);
+                        captureRequestBuilder.addTarget(imageReader.getSurface());
+                        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                                CaptureRequest.CONTROL_AE_MODE_ON);
+                        captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                                cameraAutoFocusMode);
+                        captureRequestBuilder.set(CaptureRequest.FLASH_MODE,
+                                cameraFlashMode);
+                        captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION,
+                                (sensorOrientation + getLayoutDirection() * (frontFacingCameraActive ? 1 : -1) +
+                                        360) % 360);
+
+                        session.stopRepeating();
+                        session.capture(captureRequestBuilder.build(),
+                            new CameraCaptureSession.CaptureCallback() {
+                                @Override
+                                public void onCaptureCompleted(@NonNull CameraCaptureSession session,
+                                                               @NonNull CaptureRequest request,
+                                                               @NonNull TotalCaptureResult result) {
+                                    super.onCaptureCompleted(session, request, result);
+                                }
+                            }, null);
+                        } catch (CameraAccessException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                        // failed
+                    }
+                }, backgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private final ImageReader.OnImageAvailableListener mImageAvailableListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            Image image = reader.acquireLatestImage();
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            byte[] imageData = new byte[buffer.remaining()];
+            buffer.get(imageData);
+
+            saveImage(imageData);
+            image.close();
+        }
+    };
+
+    private static class CompareSizesByArea implements Comparator<Size> {
         @Override
         public int compare(Size lhs, Size rhs) {
             // We cast here to ensure the multiplications won't overflow

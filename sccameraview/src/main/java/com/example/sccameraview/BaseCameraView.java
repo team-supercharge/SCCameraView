@@ -13,8 +13,8 @@ import java.util.Date;
 
 public abstract class BaseCameraView extends TextureView {
 
-    public static final int MEDIA_TYPE_IMAGE = 1;
-    public static final int MEDIA_TYPE_VIDEO = 2;
+    static final int MEDIA_TYPE_IMAGE = 1;
+    static final int MEDIA_TYPE_VIDEO = 2;
     static final int ORIENTATION_90 = 90;
     static final int ORIENTATION_270 = 270;
     static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
@@ -29,6 +29,7 @@ public abstract class BaseCameraView extends TextureView {
     int calculatedWidth;
     int calculatedHeight;
     protected boolean frontFacingCameraActive;
+    OnImageSavedListener imageSavedListener;
 
     final SurfaceTextureListener surfaceTextureListener = new SurfaceTextureListener();
 
@@ -49,6 +50,8 @@ public abstract class BaseCameraView extends TextureView {
 
     public abstract void switchCamera();
 
+    public abstract void takePicture();
+
     public boolean isRecordingVideo() {
         return recordingVideo;
     }
@@ -67,6 +70,10 @@ public abstract class BaseCameraView extends TextureView {
 
     public void setFrontFacingCameraActive(boolean frontFacingCameraActive) {
         this.frontFacingCameraActive = frontFacingCameraActive;
+    }
+
+    public void setImageSavedListener(OnImageSavedListener imageSavedListener) {
+        this.imageSavedListener = imageSavedListener;
     }
 
     CamcorderProfile getCamcorderProfile() {
@@ -110,8 +117,14 @@ public abstract class BaseCameraView extends TextureView {
         return true;
     }
 
-    public String getTimeStamp() {
+    String getTimeStamp() {
         return new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+    }
+
+    void saveImage(byte[] imageData) {
+        //TODO: refactor filePath method
+        SaveImageTask saveImageTask = new SaveImageTask(imageSavedListener, imageData, getOutputMediaFile(MEDIA_TYPE_IMAGE));
+        saveImageTask.execute();
     }
 
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {

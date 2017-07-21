@@ -2,5 +2,5 @@
     <string name="app_name">SCCameraView</string>
     <string name="main_switch_button">switch</string>
     <string name="main_record_button">rec</string>
-    <string name="main_stop_button">stop</string>
+    <string name="main_snap_btn">snap</string>
 </resources>
