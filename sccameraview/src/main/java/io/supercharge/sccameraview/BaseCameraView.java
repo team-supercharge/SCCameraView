@@ -101,6 +101,14 @@ public abstract class BaseCameraView extends TextureView {
         this.selectedRatioIdx = selectedRatioIdx;
     }
 
+    public void recordVideo() {
+        if (isRecordingVideo()) {
+            stopRecordingVideo();
+        } else {
+            startRecordingVideo();
+        }
+    }
+
     CamcorderProfile getCamcorderProfile() {
         if (CamcorderProfile.hasProfile(cameraId, CamcorderProfile.QUALITY_HIGH)) {
             return CamcorderProfile.get(cameraId, CamcorderProfile.QUALITY_HIGH);
