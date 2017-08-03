@@ -1,31 +1,27 @@
-package io.supercharge.sccameraview;
+package io.supercharge.sccameraviewdemo;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.hardware.Camera;
-import android.hardware.camera2.CaptureRequest;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
-import android.widget.Button;
-import android.widget.FrameLayout;
+import android.widget.ImageView;
 
-import com.example.sccameraview.BaseCameraView;
-import com.example.sccameraview.Camera1View;
-import com.example.sccameraview.Camera2View;
-import com.example.sccameraview.OnImageSavedListener;
+import io.supercharge.sccameraview.BaseCameraView;
+import io.supercharge.sccameraview.OnImageSavedListener;
+import io.supercharge.sccameraview.SCCameraView;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 1;
 
-    private FrameLayout videoContainer;
+    private SCCameraView scCameraView;
     private BaseCameraView cameraView;
-    private Button switchButton;
-    private Button recordButton;
-    private Button takePictureButton;
+    private ImageView switchButton;
+    private ImageView recordButton;
+    private ImageView takePictureButton;
+    private ImageView aspectRatioButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +30,6 @@ public class MainActivity extends AppCompatActivity {
         bindViews();
 
         if (isEveryPermissionGranted()) {
-            cameraView = createCameraView();
             initApplication();
         } else {
             ActivityCompat.requestPermissions(this,
@@ -50,14 +45,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindViews() {
-        videoContainer = (FrameLayout) findViewById(R.id.video_container);
-        switchButton = (Button) findViewById(R.id.camera_switch_btn);
-        recordButton = (Button) findViewById(R.id.camera_record_btn);
-        takePictureButton = (Button) findViewById(R.id.camera_take_picture_btn);
+        scCameraView = (SCCameraView) findViewById(R.id.video_container);
+        switchButton = (ImageView) findViewById(R.id.camera_switch_btn);
+        recordButton = (ImageView) findViewById(R.id.camera_record_btn);
+        takePictureButton = (ImageView) findViewById(R.id.camera_take_picture_btn);
+        aspectRatioButton = (ImageView) findViewById(R.id.camera_aspect_ratio_btn);
     }
 
     private void initApplication() {
-        videoContainer.addView(cameraView);
+        cameraView = scCameraView.getCameraView();
         switchButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -69,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 if (cameraView.isRecordingVideo()) {
                     cameraView.stopRecordingVideo();
-                    cameraView.startPreview();
                 } else {
                     cameraView.startRecordingVideo();
                 }
@@ -81,30 +76,20 @@ public class MainActivity extends AppCompatActivity {
                 cameraView.takePicture();
             }
         });
+        aspectRatioButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AspectRatioAdapter adapter = new AspectRatioAdapter(MainActivity.this, android.R.layout.simple_list_item_single_choice, cameraView);
+                adapter.showDialog();
+            }
+        });
+
         cameraView.setImageSavedListener(new OnImageSavedListener() {
             @Override
             public void onImageSaved() {
                 cameraView.startPreview();
             }
         });
-        
-        cameraView.startPreview();
-    }
-
-    private BaseCameraView createCameraView() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            Camera1View camera1View = new Camera1View(this);
-            camera1View.setCameraFlashMode(Camera.Parameters.FLASH_MODE_OFF);
-            camera1View.setCameraFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-
-            return camera1View;
-        } else {
-            Camera2View camera2View = new Camera2View(this);
-            camera2View.setCameraAutoFocusMode(CaptureRequest.CONTROL_AF_MODE_AUTO);
-            camera2View.setCameraFlashMode(CaptureRequest.FLASH_MODE_OFF);
-
-            return camera2View;
-        }
     }
 
     @Override
@@ -112,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case PERMISSION_REQUEST_CODE: {
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    cameraView = createCameraView();
                     initApplication();
                 }
             }

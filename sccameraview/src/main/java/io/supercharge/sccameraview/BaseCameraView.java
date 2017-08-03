@@ -1,15 +1,20 @@
-package com.example.sccameraview;
+package io.supercharge.sccameraview;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.hardware.Camera;
+import android.hardware.camera2.CaptureRequest;
 import android.media.CamcorderProfile;
+import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
 import android.view.TextureView;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public abstract class BaseCameraView extends TextureView {
 
@@ -19,23 +24,39 @@ public abstract class BaseCameraView extends TextureView {
     static final int ORIENTATION_270 = 270;
     static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
     static final int BITRATE = 2500000;
-    static final float ASPECT_RATIO = 4f / 3f;
-    static final int MAX_RECORDING_WIDTH = 720;
+    public static double ASPECT_RATIO = 1.0;
     static final String LOG_TAG = "SCCameraView";
 
+    protected int selectedRatioIdx;
     int cameraId;
     boolean recordingVideo;
     File videoFile;
-    int calculatedWidth;
-    int calculatedHeight;
-    protected boolean frontFacingCameraActive;
+    boolean frontFacingCameraActive;
     OnImageSavedListener imageSavedListener;
+    List<AspectRatio> ratioSizeList;
 
     final SurfaceTextureListener surfaceTextureListener = new SurfaceTextureListener();
 
-    public BaseCameraView(Context context) {
+    BaseCameraView(Context context) {
         super(context);
         frontFacingCameraActive = true;
+        ratioSizeList = new ArrayList<>();
+    }
+
+    public static BaseCameraView createCameraView(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            Camera1View camera1View = new Camera1View(context);
+            camera1View.setCameraFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            camera1View.setCameraFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+
+            return camera1View;
+        } else {
+            Camera2View camera2View = new Camera2View(context);
+            camera2View.setCameraFlashMode(CaptureRequest.FLASH_MODE_OFF);
+            camera2View.setCameraAutoFocusMode(CaptureRequest.CONTROL_AF_MODE_AUTO);
+
+            return camera2View;
+        }
     }
 
     public abstract void startPreview();
@@ -52,6 +73,10 @@ public abstract class BaseCameraView extends TextureView {
 
     public abstract void takePicture();
 
+    public abstract void changeAspectRatio(int position);
+
+    public abstract void collectRatioSizes();
+
     public boolean isRecordingVideo() {
         return recordingVideo;
     }
@@ -60,20 +85,20 @@ public abstract class BaseCameraView extends TextureView {
         this.videoFile = videoFile;
     }
 
-    public void setCalculatedWidth(int calculatedWidth) {
-        this.calculatedWidth = calculatedWidth;
-    }
-
-    public void setCalculatedHeight(int calculatedHeight) {
-        this.calculatedHeight = calculatedHeight;
-    }
-
-    public void setFrontFacingCameraActive(boolean frontFacingCameraActive) {
-        this.frontFacingCameraActive = frontFacingCameraActive;
-    }
-
     public void setImageSavedListener(OnImageSavedListener imageSavedListener) {
         this.imageSavedListener = imageSavedListener;
+    }
+
+    public List<AspectRatio> getRatioSizeList() {
+        return ratioSizeList;
+    }
+
+    public int getSelectedRatioIdx() {
+        return selectedRatioIdx;
+    }
+
+    public void setSelectedRatioIdx(int selectedRatioIdx) {
+        this.selectedRatioIdx = selectedRatioIdx;
     }
 
     CamcorderProfile getCamcorderProfile() {
@@ -112,6 +137,7 @@ public abstract class BaseCameraView extends TextureView {
             if (!mediaStorageDir.mkdirs()){
                 Log.e(LOG_TAG, "failed to create directory");
                 return false;
+
             }
         }
         return true;
@@ -121,10 +147,22 @@ public abstract class BaseCameraView extends TextureView {
         return new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
     }
 
+
     void saveImage(byte[] imageData) {
         //TODO: refactor filePath method
         SaveImageTask saveImageTask = new SaveImageTask(imageSavedListener, imageData, getOutputMediaFile(MEDIA_TYPE_IMAGE));
         saveImageTask.execute();
+    }
+
+    public void loadAspectRatios() {
+        LoadAspectRatiosTask loadAspectRatiosTask = new LoadAspectRatiosTask(getContext(), this);
+        loadAspectRatiosTask.execute();
+    }
+
+    public void requestParentLayout() {
+        stopPreview();
+        getParent().requestLayout();
+        startPreview();
     }
 
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {

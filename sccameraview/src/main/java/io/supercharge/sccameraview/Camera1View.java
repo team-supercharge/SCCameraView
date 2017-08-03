@@ -1,4 +1,4 @@
-package com.example.sccameraview;
+package io.supercharge.sccameraview;
 
 import android.content.Context;
 import android.hardware.Camera;
@@ -7,6 +7,7 @@ import android.media.MediaRecorder;
 import android.util.Log;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,7 +15,7 @@ import java.util.List;
  */
 public class Camera1View extends BaseCameraView {
 
-    private Camera camera;
+    protected Camera camera;
     private MediaRecorder mediaRecorder;
     private Camera.Size videoSize;
     private String cameraFlashMode;
@@ -41,17 +42,12 @@ public class Camera1View extends BaseCameraView {
 
     @Override
     void openCamera() {
-        cameraId = frontFacingCameraActive ? getDefaultCameraId(Camera.CameraInfo.CAMERA_FACING_FRONT)
-                                           : getDefaultCameraId(Camera.CameraInfo.CAMERA_FACING_BACK);
+        cameraId = getDefaultCameraId();
         camera = Camera.open(cameraId);
 
         Camera.Parameters parameters = camera.getParameters();
-        List<Camera.Size> supportedPreviewSizes = parameters.getSupportedPreviewSizes();
-        List<Camera.Size> supportedVideoSizes = parameters.getSupportedVideoSizes();
-
-        Camera.Size previewSize = getOptimalPreviewSize(supportedVideoSizes, supportedPreviewSizes,
-                calculatedWidth, calculatedHeight);
-        videoSize = chooseVideoSize(supportedVideoSizes);
+        Camera.Size previewSize = ratioSizeList.get(selectedRatioIdx).getSize(camera);
+        videoSize = ratioSizeList.get(selectedRatioIdx).getSize(camera);
         parameters.setPreviewSize(previewSize.width, previewSize.height);
         parameters.setPictureSize(previewSize.width, previewSize.height);
 
@@ -64,6 +60,7 @@ public class Camera1View extends BaseCameraView {
             parameters.setFocusMode(cameraFocusMode);
         }
 
+        parameters.setRotation(ORIENTATION_270);
         camera.setDisplayOrientation(ORIENTATION_90);
         camera.setParameters(parameters);
         try {
@@ -85,13 +82,21 @@ public class Camera1View extends BaseCameraView {
         });
     }
 
-    public void switchCamera() {
-        frontFacingCameraActive = !frontFacingCameraActive;
-        releaseCamera();
-        openCamera();
+    @Override
+    public void changeAspectRatio(int position) {
+        if(!ratioSizeList.isEmpty()) {
+            ASPECT_RATIO = ratioSizeList.get(position).getRatio();
+        }
     }
 
-    private void releaseCamera() {
+    public void switchCamera() {
+        stopPreview();
+        frontFacingCameraActive = !frontFacingCameraActive;
+        ratioSizeList = new ArrayList<>();
+        loadAspectRatios();
+    }
+
+    protected void releaseCamera() {
         if (camera != null) {
             camera.release();
             camera = null;
@@ -184,9 +189,12 @@ public class Camera1View extends BaseCameraView {
         camera.lock();         // take camera access back from MediaRecorder
         releaseCamera();
         recordingVideo = false;
+        startPreview();
     }
 
-    private static int getDefaultCameraId(int position) {
+    private int getDefaultCameraId() {
+        int position = frontFacingCameraActive ?  Camera.CameraInfo.CAMERA_FACING_FRONT
+                : Camera.CameraInfo.CAMERA_FACING_BACK;
         // Find the total number of cameras available
         int numberOfCameras = Camera.getNumberOfCameras();
 
@@ -202,67 +210,33 @@ public class Camera1View extends BaseCameraView {
         return -1;
     }
 
-    private static Camera.Size getOptimalPreviewSize(List<Camera.Size> supportedVideoSizes,
-                                                     List<Camera.Size> previewSizes, int w, int h) {
-        // Use a very small tolerance because we want an exact match.
+    private Camera.Size chooseSize(List<Camera.Size> choices) {
         final double acceptTolerance = 0.1;
 
-        // Supported video sizes list might be null, it means that we are allowed to use the preview
-        // sizes
-        List<Camera.Size> videoSizes;
-        if (supportedVideoSizes != null) {
-            videoSizes = supportedVideoSizes;
-        } else {
-            videoSizes = previewSizes;
-        }
-        Camera.Size optimalSize = null;
-
-        // Start with max value and refine as we iterate over available video sizes. This is the
-        // minimum difference between view and camera height.
-        double minDiff = Double.MAX_VALUE;
-
-        // Target view height
-        int targetHeight = h;
-
-        // Try to find a video size that matches aspect ratio and the target view size.
-        // Iterate over all available sizes and pick the largest size that can fit in the view and
-        // still maintain the aspect ratio.
-        for (Camera.Size size : videoSizes) {
-            double ratio = (double) size.width / size.height;
-            if (Math.abs(ratio - ASPECT_RATIO) > acceptTolerance) {
-                continue;
-            }
-
-            if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
-                optimalSize = size;
-                minDiff = Math.abs(size.height - targetHeight);
+        for (Camera.Size option : choices) {
+            if (Math.abs(ASPECT_RATIO - (double) option.width / (double) option.height) < acceptTolerance) {
+                return option;
             }
         }
+        return choices.get(0);
+    }
 
-        // Cannot find video size that matches the aspect ratio, ignore the requirement
-        if (optimalSize == null) {
-            minDiff = Double.MAX_VALUE;
-            for (Camera.Size size : videoSizes) {
-                if (Math.abs(size.height - targetHeight) < minDiff && previewSizes.contains(size)) {
-                    optimalSize = size;
-                    minDiff = Math.abs(size.height - targetHeight);
+    @Override
+    public void collectRatioSizes() {
+        ratioSizeList.clear();
+        camera = Camera.open(getDefaultCameraId());
+        List<Camera.Size> previewSizes = camera.getParameters().getSupportedPreviewSizes();
+
+        if (previewSizes != null) {
+            List<Double> ratioList = new ArrayList<>();
+            for (Camera.Size size : previewSizes) {
+                double ratio = (double) size.width / (double) size.height;
+                if (!ratioList.contains(ratio)) {
+                    ratioList.add(ratio);
+                    ratioSizeList.add(new AspectRatio(ratio, size.width, size.height));
                 }
             }
         }
-        return optimalSize;
-    }
-
-    private static Camera.Size chooseVideoSize(List<Camera.Size> supportedVideoSizes) {
-        final double acceptTolerance = 0.1;
-
-        for (Camera.Size size : supportedVideoSizes) {
-            if (Math.abs(size.width - size.height * ASPECT_RATIO) < acceptTolerance
-                    && size.width <= MAX_RECORDING_WIDTH) {
-                return size;
-            }
-        }
-
-        return supportedVideoSizes.get(supportedVideoSizes.size() - 1);
     }
 
     public void setCameraFlashMode(String cameraFlashMode) {
