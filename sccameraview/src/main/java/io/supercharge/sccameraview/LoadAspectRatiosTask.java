@@ -30,11 +30,6 @@ public class LoadAspectRatiosTask extends AsyncTask {
             });
         }
 
-        for (int i = 0; i < cameraView.getRatioSizeList().size(); i++) {
-            if (cameraView.getRatioSizeList().get(i).getRatio() == BaseCameraView.ASPECT_RATIO)
-                cameraView.setSelectedRatioIdx(i);
-        }
-
         return cameraView.getRatioSizeList();
     }
 
