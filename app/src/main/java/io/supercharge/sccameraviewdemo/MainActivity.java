@@ -18,7 +18,7 @@ public class MainActivity extends AppCompatActivity {
 
     private SCCameraView scCameraView;
     private BaseCameraView cameraView;
-    private ImageView switchButton;
+    private ImageView switchCameraButton;
     private ImageView recordButton;
     private ImageView takePictureButton;
     private ImageView aspectRatioButton;
@@ -46,7 +46,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindViews() {
         scCameraView = (SCCameraView) findViewById(R.id.video_container);
-        switchButton = (ImageView) findViewById(R.id.camera_switch_btn);
+        switchCameraButton = (ImageView) findViewById(R.id.camera_switch_btn);
         recordButton = (ImageView) findViewById(R.id.camera_record_btn);
         takePictureButton = (ImageView) findViewById(R.id.camera_take_picture_btn);
         aspectRatioButton = (ImageView) findViewById(R.id.camera_aspect_ratio_btn);
@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void initApplication() {
         cameraView = scCameraView.getCameraView();
-        switchButton.setOnClickListener(new View.OnClickListener() {
+        switchCameraButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 cameraView.switchCamera();
@@ -63,11 +63,7 @@ public class MainActivity extends AppCompatActivity {
         recordButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (cameraView.isRecordingVideo()) {
-                    cameraView.stopRecordingVideo();
-                } else {
-                    cameraView.startRecordingVideo();
-                }
+                cameraView.recordVideo();
             }
         });
         takePictureButton.setOnClickListener(new View.OnClickListener() {
