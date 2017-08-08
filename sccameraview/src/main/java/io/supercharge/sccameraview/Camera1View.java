@@ -210,17 +210,6 @@ public class Camera1View extends BaseCameraView {
         return -1;
     }
 
-    private Camera.Size chooseSize(List<Camera.Size> choices) {
-        final double acceptTolerance = 0.1;
-
-        for (Camera.Size option : choices) {
-            if (Math.abs(ASPECT_RATIO - (double) option.width / (double) option.height) < acceptTolerance) {
-                return option;
-            }
-        }
-        return choices.get(0);
-    }
-
     @Override
     public void collectRatioSizes() {
         ratioSizeList.clear();

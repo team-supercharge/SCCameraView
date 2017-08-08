@@ -165,6 +165,20 @@ public abstract class BaseCameraView extends TextureView {
         startPreview();
     }
 
+    public void setAspectRatioByScreenSize(double screenRatio) {
+        double minDifference = Double.MAX_VALUE;
+        int minIdx = 0;
+        for (int i = 0; i < ratioSizeList.size(); i++) {
+            double difference = Math.abs(ratioSizeList.get(i).getRatio() - screenRatio);
+            if (difference < minDifference) {
+                minDifference = difference;
+                minIdx = i;
+            }
+        }
+        ASPECT_RATIO = ratioSizeList.get(minIdx).getRatio();
+        setSelectedRatioIdx(minIdx);
+    }
+
     private class SurfaceTextureListener implements TextureView.SurfaceTextureListener {
 
         @Override

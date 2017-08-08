@@ -39,16 +39,17 @@ public class SCCameraView extends FrameLayout {
         if (isInEditMode() || cameraView.getRatioSizeList().isEmpty()) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         } else {
-            aspectRatio = cameraView.getRatioSizeList().get(cameraView.getSelectedRatioIdx());
             if (width == 0 && height == 0) {
                 width = getMeasuredWidth();
                 height = getMeasuredHeight();
+                cameraView.setAspectRatioByScreenSize((double)height/width);
             }
+            aspectRatio = cameraView.getRatioSizeList().get(cameraView.getSelectedRatioIdx());
             final int widthMode = MeasureSpec.getMode(widthMeasureSpec);
             final int heightMode = MeasureSpec.getMode(heightMeasureSpec);
             int measureWidth = Math.min(width, (int) (height / aspectRatio.getRatio()));
             int measureHeight = Math.min(height, (int) (width * aspectRatio.getRatio()));
-            double viewRatio = (double)measureWidth / (double)measureHeight;
+            double viewRatio = (double)measureHeight / (double)measureWidth;
 
             if (widthMode == MeasureSpec.EXACTLY && heightMode != MeasureSpec.EXACTLY) {
                 super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(measureHeight, MeasureSpec.EXACTLY));
